@@ -26,6 +26,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   auth_invalid: "Invalid authentication response.",
   auth_state: "Security check failed. Please try connecting again.",
   auth_tokens: "Could not obtain Gmail tokens. Try connecting again.",
+  auth_scopes:
+    "Gmail send permission was not granted. Add the gmail.send scope in Google Cloud OAuth consent screen, then connect again.",
   auth_failed: "Authentication failed. Check your Google Cloud setup.",
   auth_config: "Server auth configuration is missing.",
 };

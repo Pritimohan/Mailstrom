@@ -10,6 +10,9 @@ export function mapGmailError(error: unknown): string {
     if (message.includes("gmail api has not been used") || message.includes("it is disabled")) {
       return "Gmail API is not enabled for your Google Cloud project. Enable Gmail API in Google Cloud Console, wait 2–5 minutes, then try again.";
     }
+    if (message.includes("insufficient authentication scopes")) {
+      return "Gmail send permission is missing. Disconnect, then Connect Gmail again and approve the send access prompt.";
+    }
     if (message.includes("invalid_grant") || message.includes("unauthorized")) {
       return "Gmail authorization expired. Please reconnect your account.";
     }

@@ -39,6 +39,17 @@ export async function GET(request: NextRequest) {
       return redirectWithMessage("/", { error: "auth_tokens" });
     }
 
+    const grantedScopes = (tokens.scope ?? "").split(/\s+/);
+    const hasGmailSend = grantedScopes.some(
+      (scope) =>
+        scope === "https://www.googleapis.com/auth/gmail.send" ||
+        scope === "https://www.googleapis.com/auth/gmail.compose" ||
+        scope === "https://mail.google.com/",
+    );
+    if (!hasGmailSend) {
+      return redirectWithMessage("/", { error: "auth_scopes" });
+    }
+
     const userEmail = await fetchUserEmail(tokens.access_token);
 
     session.accessToken = tokens.access_token;
