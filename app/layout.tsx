@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Gmail Sender",
+  title: "Mailstrom",
   description: "Send bulk emails from CSV or Excel via Gmail API",
 };
 

@@ -106,7 +106,7 @@ export function GmailSenderApp() {
                   <Mail className="h-5 w-5 text-neutral-300" />
                 </div>
                 <div>
-                  <BentoTitle className="text-2xl sm:text-3xl">Gmail Sender</BentoTitle>
+                  <BentoTitle className="text-2xl sm:text-3xl">Mailstrom</BentoTitle>
                   <BentoDescription className="mt-1 max-w-md">
                     Upload a spreadsheet, compose once, and send individually via Gmail API.
                   </BentoDescription>
