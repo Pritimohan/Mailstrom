@@ -16,13 +16,24 @@ function wrapBase64(base64: string, lineLength = 76): string {
   return chunks.join("\r\n");
 }
 
+function buildHtmlPartLines(html: string): string[] {
+  const encoded = Buffer.from(html, "utf-8").toString("base64");
+  return [
+    "Content-Type: text/html; charset=UTF-8",
+    "Content-Transfer-Encoding: base64",
+    "",
+    wrapBase64(encoded),
+  ];
+}
+
 function buildInlineImagePart(boundary: string, image: InlineImage): string[] {
   return [
     `--${boundary}`,
     `Content-Type: ${image.mimeType}; name="${image.filename}"`,
-    `Content-Transfer-Encoding: base64`,
+    "Content-Transfer-Encoding: base64",
     `Content-Disposition: inline; filename="${image.filename}"`,
     `Content-ID: <${image.cid}>`,
+    `X-Attachment-Id: ${image.cid}`,
     "",
     wrapBase64(image.base64),
   ];
@@ -51,10 +62,7 @@ function buildRelatedBody(
   const body = [
     "",
     `--${boundary}`,
-    "Content-Type: text/html; charset=UTF-8",
-    "Content-Transfer-Encoding: 7bit",
-    "",
-    html,
+    ...buildHtmlPartLines(html),
     ...inlineImages.flatMap((image) => buildInlineImagePart(boundary, image)),
     `--${boundary}--`,
   ];

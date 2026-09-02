@@ -8,8 +8,8 @@ import type { ComposeValues } from "@/components/email-compose";
 import { SendProgress } from "@/components/send-progress";
 import {
   fileToBase64,
-  filterInlineImagesForHtml,
   prepareHtmlForSend,
+  resolveInlineImagesForSend,
   stripHtmlToText,
 } from "@/lib/compose-utils";
 
@@ -98,9 +98,11 @@ export function SendControls({
     setLogs([]);
 
     let attachmentPayloads: AttachmentPayload[] = [];
-    const htmlForSend = prepareHtmlForSend(compose.body.trim());
-    let inlineImagePayloads: InlineImage[] = filterInlineImagesForHtml(
-      compose.body,
+    const rawHtml = compose.body.trim();
+    const htmlForSend = prepareHtmlForSend(rawHtml);
+    const inlineImagePayloads = resolveInlineImagesForSend(
+      rawHtml,
+      htmlForSend,
       compose.inlineImages,
     );
 

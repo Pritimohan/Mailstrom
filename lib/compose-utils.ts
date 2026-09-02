@@ -93,11 +93,25 @@ export function filterInlineImagesForHtml(
   html: string,
   inlineImages: InlineImage[],
 ): InlineImage[] {
-  return inlineImages.filter(
-    (image) =>
-      html.includes(`cid:${image.cid}`) ||
-      html.includes(`data-cid="${image.cid}"`),
-  );
+  const cids = extractCidsFromHtml(html);
+  if (cids.length === 0) {
+    return [];
+  }
+
+  return inlineImages.filter((image) => cids.includes(image.cid));
+}
+
+export function resolveInlineImagesForSend(
+  rawHtml: string,
+  preparedHtml: string,
+  inlineImages: InlineImage[],
+): InlineImage[] {
+  const cids = new Set([
+    ...extractCidsFromHtml(rawHtml),
+    ...extractCidsFromHtml(preparedHtml),
+  ]);
+
+  return inlineImages.filter((image) => cids.has(image.cid));
 }
 
 export function prepareHtmlForSend(html: string): string {

@@ -138,12 +138,25 @@ export function validateSendPayload(
   }
 
   for (const image of inlineImages) {
-    if (
-      !payload.html.includes(`cid:${image.cid}`) &&
-      !payload.html.includes(`data-cid="${image.cid}"`)
-    ) {
+    const referenced =
+      payload.html.includes(`cid:${image.cid}`) ||
+      payload.html.includes(`data-cid="${image.cid}"`);
+
+    if (!referenced) {
       return "Inline image is not referenced in the email body.";
     }
+  }
+
+  const cidsInHtml = new Set<string>();
+  for (const match of payload.html.matchAll(/cid:([^"\s>]+)/g)) {
+    if (match[1]) cidsInHtml.add(match[1]);
+  }
+  for (const match of payload.html.matchAll(/data-cid="([^"]+)"/g)) {
+    if (match[1]) cidsInHtml.add(match[1]);
+  }
+
+  if (cidsInHtml.size > 0 && inlineImages.length === 0) {
+    return "Inline image data is missing from the send request.";
   }
 
   return null;

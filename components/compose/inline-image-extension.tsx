@@ -7,6 +7,7 @@ import {
   type NodeViewProps,
 } from "@tiptap/react";
 import { X } from "lucide-react";
+import { mergeAttributes } from "@tiptap/core";
 import Image from "@tiptap/extension-image";
 import { useInlineImagePreview } from "@/components/compose/inline-image-preview-context";
 import { inlineImageToDataUrl } from "@/lib/compose-utils";
@@ -105,6 +106,13 @@ export function createInlineImageExtension() {
       return ReactNodeViewRenderer(InlineImageNodeView, {
         as: "div",
       });
+    },
+
+    renderHTML({ HTMLAttributes }) {
+      return [
+        "img",
+        mergeAttributes(this.options.HTMLAttributes, HTMLAttributes),
+      ];
     },
   }).configure({
     inline: false,

@@ -41,17 +41,30 @@ export function EmailCompose({
   const editorRef = useRef<Editor | null>(null);
   const attachmentRef = useRef<HTMLInputElement>(null);
   const photoRef = useRef<HTMLInputElement>(null);
+  const valuesRef = useRef(values);
+  valuesRef.current = values;
+
   const [editor, setEditor] = useState<Editor | null>(null);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [inlineImageError, setInlineImageError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
+
+  const updateValues = useCallback(
+    (patch: Partial<ComposeValues>) => {
+      const next = { ...valuesRef.current, ...patch };
+      valuesRef.current = next;
+      onChange(next);
+    },
+    [onChange],
+  );
 
   const addAttachments = (files: FileList | File[]) => {
     setAttachmentError(null);
     const incoming = Array.from(files);
     if (incoming.length === 0) return;
 
-    const nextAttachments = [...values.attachments];
+    const current = valuesRef.current;
+    const nextAttachments = [...current.attachments];
     for (const file of incoming) {
       if (nextAttachments.length >= MAX_ATTACHMENTS) {
         setAttachmentError(`Maximum ${MAX_ATTACHMENTS} attachments allowed.`);
@@ -76,44 +89,48 @@ export function EmailCompose({
       nextAttachments.push(file);
     }
 
-    onChange({ ...values, attachments: nextAttachments });
+    updateValues({ attachments: nextAttachments });
   };
 
   const removeAttachment = (index: number) => {
-    onChange({
-      ...values,
-      attachments: values.attachments.filter((_, current) => current !== index),
+    updateValues({
+      attachments: valuesRef.current.attachments.filter(
+        (_, current) => current !== index,
+      ),
     });
   };
 
-  const handleInlineImageAdd = (image: InlineImage) => {
-    setInlineImageError(null);
-    onChange({
-      ...values,
-      inlineImages: [...values.inlineImages, image],
-    });
-  };
+  const handleInlineImageAdd = useCallback(
+    (image: InlineImage) => {
+      setInlineImageError(null);
+      updateValues({
+        inlineImages: [...valuesRef.current.inlineImages, image],
+      });
+    },
+    [updateValues],
+  );
 
   const handleInlineImageRemove = useCallback(
     (cid: string) => {
-      onChange({
-        ...values,
-        inlineImages: values.inlineImages.filter((image) => image.cid !== cid),
+      updateValues({
+        inlineImages: valuesRef.current.inlineImages.filter(
+          (image) => image.cid !== cid,
+        ),
       });
     },
-    [onChange, values],
+    [updateValues],
   );
 
   const handleInlineImagesSync = useCallback(
     (cids: string[]) => {
-      const nextInlineImages = values.inlineImages.filter((image) =>
+      const nextInlineImages = valuesRef.current.inlineImages.filter((image) =>
         cids.includes(image.cid),
       );
-      if (nextInlineImages.length !== values.inlineImages.length) {
-        onChange({ ...values, inlineImages: nextInlineImages });
+      if (nextInlineImages.length !== valuesRef.current.inlineImages.length) {
+        updateValues({ inlineImages: nextInlineImages });
       }
     },
-    [onChange, values],
+    [updateValues],
   );
 
   const removeInlineImageByCid = (cid: string) => {
@@ -187,9 +204,7 @@ export function EmailCompose({
           value={values.subject}
           disabled={disabled}
           placeholder="Email subject"
-          onChange={(event) =>
-            onChange({ ...values, subject: event.target.value })
-          }
+          onChange={(event) => updateValues({ subject: event.target.value })}
         />
       </div>
 
@@ -208,7 +223,7 @@ export function EmailCompose({
           disabled={disabled}
           editorRef={editorRef}
           onEditorReady={setEditor}
-          onChange={(body) => onChange({ ...values, body })}
+          onChange={(body) => updateValues({ body })}
           onInlineImageAdd={handleInlineImageAdd}
           onInlineImagesSync={handleInlineImagesSync}
           onInlineImageError={setInlineImageError}
