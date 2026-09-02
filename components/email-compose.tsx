@@ -1,31 +1,28 @@
 "use client";
 
 import { useRef, useState } from "react";
+import type { Editor } from "@tiptap/react";
 import { Paperclip, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-
-const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
-
-const ALLOWED_ATTACHMENT_EXTENSIONS = new Set([
-  ".pdf",
-  ".doc",
-  ".docx",
-  ".xls",
-  ".xlsx",
-  ".csv",
-  ".png",
-  ".jpg",
-  ".jpeg",
-  ".zip",
-]);
+import { ComposeToolbar } from "@/components/compose/compose-toolbar";
+import {
+  insertInlineImageFromFile,
+  RichTextEditor,
+} from "@/components/compose/rich-text-editor";
+import {
+  MAX_ATTACHMENTS,
+  validateAttachmentFile,
+} from "@/lib/compose-utils";
+import type { InlineImage } from "@/types";
+import { cn } from "@/lib/utils";
 
 export interface ComposeValues {
   subject: string;
   body: string;
-  attachment: File | null;
+  attachments: File[];
+  inlineImages: InlineImage[];
 }
 
 interface EmailComposeProps {
@@ -39,37 +36,106 @@ export function EmailCompose({
   onChange,
   disabled,
 }: EmailComposeProps) {
-  const fileRef = useRef<HTMLInputElement>(null);
+  const editorRef = useRef<Editor | null>(null);
+  const attachmentRef = useRef<HTMLInputElement>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
+  const [editor, setEditor] = useState<Editor | null>(null);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [inlineImageError, setInlineImageError] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
 
-  const handleAttachment = (file: File | undefined) => {
+  const addAttachments = (files: FileList | File[]) => {
     setAttachmentError(null);
-    if (!file) {
-      onChange({ ...values, attachment: null });
-      return;
+    const incoming = Array.from(files);
+    if (incoming.length === 0) return;
+
+    const nextAttachments = [...values.attachments];
+    for (const file of incoming) {
+      if (nextAttachments.length >= MAX_ATTACHMENTS) {
+        setAttachmentError(`Maximum ${MAX_ATTACHMENTS} attachments allowed.`);
+        break;
+      }
+
+      const error = validateAttachmentFile(file);
+      if (error) {
+        setAttachmentError(error);
+        continue;
+      }
+
+      if (
+        nextAttachments.some(
+          (existing) =>
+            existing.name === file.name && existing.size === file.size,
+        )
+      ) {
+        continue;
+      }
+
+      nextAttachments.push(file);
     }
 
-    const ext = file.name.includes(".")
-      ? file.name.slice(file.name.lastIndexOf(".")).toLowerCase()
-      : "";
+    onChange({ ...values, attachments: nextAttachments });
+  };
 
-    if (ext && !ALLOWED_ATTACHMENT_EXTENSIONS.has(ext)) {
-      setAttachmentError("Attachment file type is not allowed.");
-      return;
+  const removeAttachment = (index: number) => {
+    onChange({
+      ...values,
+      attachments: values.attachments.filter((_, current) => current !== index),
+    });
+  };
+
+  const handleInlineImageAdd = (image: InlineImage) => {
+    setInlineImageError(null);
+    onChange({
+      ...values,
+      inlineImages: [...values.inlineImages, image],
+    });
+  };
+
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    if (!disabled) {
+      setDragActive(true);
     }
+  };
 
-    if (file.size > MAX_ATTACHMENT_BYTES) {
-      setAttachmentError(
-        `Attachment exceeds ${Math.round(MAX_ATTACHMENT_BYTES / 1024 / 1024)} MB limit.`,
+  const handleDragLeave = () => {
+    setDragActive(false);
+  };
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setDragActive(false);
+    if (disabled || !event.dataTransfer.files.length) return;
+
+    const files = Array.from(event.dataTransfer.files);
+    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+    const otherFiles = files.filter((file) => !file.type.startsWith("image/"));
+
+    for (const file of imageFiles) {
+      insertInlineImageFromFile(
+        editorRef.current,
+        file,
+        handleInlineImageAdd,
+        setInlineImageError,
       );
-      return;
     }
 
-    onChange({ ...values, attachment: file });
+    if (otherFiles.length > 0) {
+      addAttachments(otherFiles);
+    }
   };
 
   return (
-    <div className="space-y-4">
+    <div
+      className={cn(
+        "space-y-4 rounded-2xl transition-colors",
+        dragActive && "ring-2 ring-neutral-500 ring-offset-2 ring-offset-neutral-950",
+      )}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <div className="space-y-2">
         <Label htmlFor="subject">Subject</Label>
         <Input
@@ -85,67 +151,112 @@ export function EmailCompose({
 
       <div className="space-y-2">
         <Label htmlFor="body">Body</Label>
-        <Textarea
-          id="body"
+        <ComposeToolbar
+          editor={editor}
+          disabled={disabled}
+          onAttachFiles={() => attachmentRef.current?.click()}
+          onInsertPhoto={() => photoRef.current?.click()}
+        />
+        <RichTextEditor
           value={values.body}
           disabled={disabled}
-          placeholder="Write your email message..."
-          onChange={(event) =>
-            onChange({ ...values, body: event.target.value })
-          }
+          editorRef={editorRef}
+          onEditorReady={setEditor}
+          onChange={(body) => onChange({ ...values, body })}
+          onInlineImageAdd={handleInlineImageAdd}
+          onInlineImageError={setInlineImageError}
         />
+        {inlineImageError && (
+          <p className="text-sm text-red-400">{inlineImageError}</p>
+        )}
       </div>
 
-      <div className="flex justify-between items-center">
-        <Label htmlFor="attachment">Attachment (optional)</Label>
-        <input
-          ref={fileRef}
-          id="attachment"
-          type="file"
-          className="hidden"
-          disabled={disabled}
-          accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.zip"
-          onChange={(event) => handleAttachment(event.target.files?.[0])}
-        />
-        {values.attachment ? (
-          <div className=" max-w-md flex items-center gap-3 overflow-hidden rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2">
-            <Paperclip className="h-4 w-4 shrink-0 text-neutral-400" />
-            <p
-              className="min-w-0 flex-1 truncate text-sm text-neutral-200"
-              title={values.attachment.name}
-            >
-              {values.attachment.name}
-            </p>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 shrink-0 p-0"
-              disabled={disabled}
-              aria-label="Remove attachment"
-              onClick={() => {
-                handleAttachment(undefined);
-                if (fileRef.current) fileRef.current.value = "";
-              }}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        ) : (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <Label>Attachments (optional)</Label>
           <Button
             type="button"
             variant="outline"
             disabled={disabled}
-            onClick={() => fileRef.current?.click()}
+            onClick={() => attachmentRef.current?.click()}
           >
             <Paperclip className="h-4 w-4" />
             Add attachment
           </Button>
+        </div>
+
+        {values.attachments.length > 0 && (
+          <div className="space-y-2">
+            {values.attachments.map((attachment, index) => (
+              <div
+                key={`${attachment.name}-${attachment.size}-${index}`}
+                className="flex items-center gap-3 overflow-hidden rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+              >
+                <Paperclip className="h-4 w-4 shrink-0 text-neutral-400" />
+                <p
+                  className="min-w-0 flex-1 truncate text-sm text-neutral-200"
+                  title={attachment.name}
+                >
+                  {attachment.name}
+                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 shrink-0 p-0"
+                  disabled={disabled}
+                  aria-label={`Remove ${attachment.name}`}
+                  onClick={() => removeAttachment(index)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
         )}
+
         {attachmentError && (
-          <p className="text-sm text-neutral-400">{attachmentError}</p>
+          <p className="text-sm text-red-400">{attachmentError}</p>
         )}
+
+        <p className="text-xs text-neutral-500">
+          Drag files here to attach, or drop images on the editor to insert inline.
+        </p>
       </div>
+
+      <input
+        ref={attachmentRef}
+        type="file"
+        className="hidden"
+        multiple
+        disabled={disabled}
+        accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.zip"
+        onChange={(event) => {
+          if (event.target.files) {
+            addAttachments(event.target.files);
+          }
+          event.target.value = "";
+        }}
+      />
+      <input
+        ref={photoRef}
+        type="file"
+        className="hidden"
+        disabled={disabled}
+        accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) {
+            insertInlineImageFromFile(
+              editorRef.current,
+              file,
+              handleInlineImageAdd,
+              setInlineImageError,
+            );
+          }
+          event.target.value = "";
+        }}
+      />
     </div>
   );
 }

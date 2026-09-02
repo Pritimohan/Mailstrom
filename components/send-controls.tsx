@@ -3,9 +3,14 @@
 import { useMemo, useRef, useState } from "react";
 import { Pause, Play, Square, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { AttachmentPayload, SendLogEntry, SendResult } from "@/types";
+import type { AttachmentPayload, InlineImage, SendLogEntry, SendResult } from "@/types";
 import type { ComposeValues } from "@/components/email-compose";
 import { SendProgress } from "@/components/send-progress";
+import {
+  fileToBase64,
+  filterInlineImagesForHtml,
+  stripHtmlToText,
+} from "@/lib/compose-utils";
 
 const SEND_DELAY_MS = 600;
 const MAX_RECIPIENTS = 500;
@@ -19,16 +24,10 @@ interface SendControlsProps {
 }
 
 async function fileToAttachmentPayload(file: File): Promise<AttachmentPayload> {
-  const buffer = await file.arrayBuffer();
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.length; i += 1) {
-    binary += String.fromCharCode(bytes[i] ?? 0);
-  }
   return {
     filename: file.name,
     mimeType: file.type || "application/octet-stream",
-    base64: btoa(binary),
+    base64: await fileToBase64(file),
   };
 }
 
@@ -63,13 +62,15 @@ export function SendControls({
     [recipients],
   );
 
+  const bodyHasContent = stripHtmlToText(compose.body).length > 0;
+
   const canStart =
     connected &&
     !disabled &&
     !sending &&
     cappedRecipients.length > 0 &&
     compose.subject.trim().length > 0 &&
-    compose.body.trim().length > 0;
+    bodyHasContent;
 
   const waitWhilePaused = async () => {
     while (pauseRef.current && !cancelRef.current) {
@@ -95,23 +96,28 @@ export function SendControls({
     setCompleted(0);
     setLogs([]);
 
-    let attachmentPayload: AttachmentPayload | undefined;
-    if (compose.attachment) {
-      try {
-        attachmentPayload = await fileToAttachmentPayload(compose.attachment);
-      } catch {
-        setLogs([
-          {
-            email: "—",
-            status: "failed",
-            error: "Failed to read attachment",
-            timestamp: new Date().toISOString(),
-          },
-        ]);
-        setSending(false);
-        onSendingChange?.(false);
-        return;
-      }
+    let attachmentPayloads: AttachmentPayload[] = [];
+    let inlineImagePayloads: InlineImage[] = filterInlineImagesForHtml(
+      compose.body,
+      compose.inlineImages,
+    );
+
+    try {
+      attachmentPayloads = await Promise.all(
+        compose.attachments.map((file) => fileToAttachmentPayload(file)),
+      );
+    } catch {
+      setLogs([
+        {
+          email: "—",
+          status: "failed",
+          error: "Failed to read attachments",
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+      setSending(false);
+      onSendingChange?.(false);
+      return;
     }
 
     for (let index = 0; index < cappedRecipients.length; index += 1) {
@@ -129,7 +135,8 @@ export function SendControls({
             to: email,
             subject: compose.subject.trim(),
             html: compose.body.trim(),
-            attachment: attachmentPayload,
+            attachments: attachmentPayloads,
+            inlineImages: inlineImagePayloads,
           }),
         });
 

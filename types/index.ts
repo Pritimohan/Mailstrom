@@ -14,6 +14,13 @@ export interface AttachmentPayload {
   base64: string;
 }
 
+export interface InlineImage {
+  cid: string;
+  filename: string;
+  mimeType: string;
+  base64: string;
+}
+
 export interface SendLogEntry {
   email: string;
   status: "sent" | "failed";

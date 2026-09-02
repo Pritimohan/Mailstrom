@@ -2,7 +2,7 @@ import { google } from "googleapis";
 import type { SessionData } from "@/lib/session";
 import { createOAuth2Client } from "@/lib/oauth";
 import { buildMimeMessage, encodeRawMessage } from "@/lib/mime";
-import type { AttachmentPayload } from "@/types";
+import type { AttachmentPayload, InlineImage } from "@/types";
 
 export function mapGmailError(error: unknown): string {
   if (error instanceof Error) {
@@ -57,12 +57,13 @@ export async function sendEmail(
   to: string,
   subject: string,
   html: string,
-  attachment?: AttachmentPayload,
+  attachments: AttachmentPayload[] = [],
+  inlineImages: InlineImage[] = [],
 ): Promise<{ messageId: string; session: SessionData }> {
   const client = await getAuthenticatedClient(session);
   const gmail = google.gmail({ version: "v1", auth: client });
 
-  const raw = buildMimeMessage(to, subject, html, attachment);
+  const raw = buildMimeMessage(to, subject, html, attachments, inlineImages);
   const encoded = encodeRawMessage(raw);
 
   const response = await gmail.users.messages.send({

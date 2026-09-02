@@ -4,7 +4,7 @@ import { sendEmail, mapGmailError } from "@/lib/gmail";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import {
   sendEmailSchema,
-  validateAttachment,
+  validateSendPayload,
 } from "@/lib/validators";
 
 export async function POST(request: NextRequest) {
@@ -43,26 +43,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (parsed.data.attachment) {
-      const attachmentError = validateAttachment(parsed.data.attachment);
-      if (attachmentError) {
-        return NextResponse.json(
-          { success: false, error: attachmentError },
-          { status: 400 },
-        );
-      }
+    const payloadError = validateSendPayload(parsed.data);
+    if (payloadError) {
+      return NextResponse.json(
+        { success: false, error: payloadError },
+        { status: 400 },
+      );
     }
-
-    const html = parsed.data.html.includes("<")
-      ? parsed.data.html
-      : parsed.data.html.replace(/\n/g, "<br>");
 
     const { messageId, session: updatedSession } = await sendEmail(
       session,
       parsed.data.to,
       parsed.data.subject,
-      html,
-      parsed.data.attachment,
+      parsed.data.html,
+      parsed.data.attachments ?? [],
+      parsed.data.inlineImages ?? [],
     );
 
     session.accessToken = updatedSession.accessToken;

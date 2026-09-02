@@ -41,7 +41,8 @@ export function GmailSenderApp() {
   const [compose, setCompose] = useState<ComposeValues>({
     subject: "",
     body: "",
-    attachment: null,
+    attachments: [],
+    inlineImages: [],
   });
   const [banner, setBanner] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -217,7 +218,7 @@ export function GmailSenderApp() {
               <BentoLabel>Step 03</BentoLabel>
               <BentoTitle>Compose</BentoTitle>
               <BentoDescription>
-                Same subject, body, and attachment for every recipient.
+                Same subject, body, attachments, and inline images for every recipient.
               </BentoDescription>
             </div>
             <EmailCompose

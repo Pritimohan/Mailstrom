@@ -96,3 +96,41 @@ body {
   background-color: #22c55e;
   animation: blink-green 1.4s ease-in-out infinite;
 }
+
+.compose-editor .ProseMirror {
+  min-height: 200px;
+  outline: none;
+}
+
+.compose-editor .ProseMirror p.is-editor-empty:first-child::before {
+  color: #737373;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.compose-editor .ProseMirror ul,
+.compose-editor .ProseMirror ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.compose-editor .ProseMirror blockquote {
+  border-left: 3px solid #525252;
+  margin: 0.75rem 0;
+  padding-left: 0.75rem;
+  color: #d4d4d4;
+}
+
+.compose-editor .ProseMirror img {
+  display: inline-block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.5rem 0;
+}
+
+.compose-editor .ProseMirror a {
+  color: #38bdf8;
+  text-decoration: underline;
+}
