@@ -3,7 +3,6 @@
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
-import Image from "@tiptap/extension-image";
 import TextAlign from "@tiptap/extension-text-align";
 import Underline from "@tiptap/extension-underline";
 import { TextStyle } from "@tiptap/extension-text-style";
@@ -11,38 +10,29 @@ import Color from "@tiptap/extension-color";
 import Highlight from "@tiptap/extension-highlight";
 import FontFamily from "@tiptap/extension-font-family";
 import Placeholder from "@tiptap/extension-placeholder";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FontSize } from "@/lib/tiptap-font-size";
 import {
+  createInlineImageExtension,
+  insertInlineImageNode,
+} from "@/components/compose/inline-image-extension";
+import { InlineImagePreviewProvider } from "@/components/compose/inline-image-preview-context";
+import {
+  extractCidsFromHtml,
   fileToInlineImage,
+  inlineImageToDataUrl,
   isInlineImageFile,
   validateInlineImageFile,
 } from "@/lib/compose-utils";
 import type { InlineImage } from "@/types";
 import { cn } from "@/lib/utils";
 
-const CidImage = Image.extend({
-  addAttributes() {
-    return {
-      ...this.parent?.(),
-      src: {
-        default: null,
-        parseHTML: (element) => element.getAttribute("src"),
-        renderHTML: (attributes) => {
-          if (!attributes.src) {
-            return {};
-          }
-          return { src: attributes.src };
-        },
-      },
-    };
-  },
-});
-
 interface RichTextEditorProps {
   value: string;
+  inlineImages: InlineImage[];
   onChange: (html: string) => void;
   onInlineImageAdd: (image: InlineImage) => void;
+  onInlineImagesSync: (cids: string[]) => void;
   onInlineImageError: (message: string) => void;
   disabled?: boolean;
   editorRef?: React.MutableRefObject<Editor | null>;
@@ -51,15 +41,33 @@ interface RichTextEditorProps {
 
 export function RichTextEditor({
   value,
+  inlineImages,
   onChange,
   onInlineImageAdd,
+  onInlineImagesSync,
   onInlineImageError,
   disabled,
   editorRef,
   onEditorReady,
 }: RichTextEditorProps) {
   const onChangeRef = useRef(onChange);
+  const onInlineImagesSyncRef = useRef(onInlineImagesSync);
+  const [pendingImages, setPendingImages] = useState<InlineImage[]>([]);
   onChangeRef.current = onChange;
+  onInlineImagesSyncRef.current = onInlineImagesSync;
+
+  const previewImages = useMemo(() => {
+    const byCid = new Map(inlineImages.map((image) => [image.cid, image]));
+    for (const image of pendingImages) {
+      byCid.set(image.cid, image);
+    }
+    return [...byCid.values()];
+  }, [inlineImages, pendingImages]);
+
+  const inlineImageExtension = useMemo(
+    () => createInlineImageExtension(),
+    [],
+  );
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -75,13 +83,7 @@ export function RichTextEditor({
           class: "text-sky-400 underline",
         },
       }),
-      CidImage.configure({
-        inline: true,
-        allowBase64: false,
-        HTMLAttributes: {
-          class: "max-w-full rounded-md",
-        },
-      }),
+      inlineImageExtension,
       TextAlign.configure({
         types: ["paragraph", "heading"],
       }),
@@ -99,7 +101,13 @@ export function RichTextEditor({
     content: value || "<p></p>",
     editable: !disabled,
     onUpdate: ({ editor: currentEditor }) => {
-      onChangeRef.current(currentEditor.getHTML());
+      const html = currentEditor.getHTML();
+      const cids = extractCidsFromHtml(html);
+      onChangeRef.current(html);
+      onInlineImagesSyncRef.current(cids);
+      setPendingImages((current) =>
+        current.filter((image) => cids.includes(image.cid)),
+      );
     },
     editorProps: {
       attributes: {
@@ -149,12 +157,13 @@ export function RichTextEditor({
 
     try {
       const inlineImage = await fileToInlineImage(file);
+      setPendingImages((current) => [...current, inlineImage]);
       onInlineImageAdd(inlineImage);
-      editor
-        .chain()
-        .focus()
-        .setImage({ src: `cid:${inlineImage.cid}`, alt: inlineImage.filename })
-        .run();
+      insertInlineImageNode(editor, {
+        cid: inlineImage.cid,
+        filename: inlineImage.filename,
+        previewUrl: inlineImageToDataUrl(inlineImage),
+      });
     } catch (error) {
       onInlineImageError(
         error instanceof Error ? error.message : "Failed to insert image.",
@@ -177,15 +186,17 @@ export function RichTextEditor({
   useEffect(() => {
     if (!editor) return;
     const currentHtml = editor.getHTML();
-    if (value !== currentHtml) {
+    if (value !== currentHtml && value !== "") {
       editor.commands.setContent(value || "<p></p>", { emitUpdate: false });
     }
   }, [editor, value]);
 
   return (
-    <div className="rounded-xl border border-neutral-700 bg-neutral-950/60">
-      <EditorContent editor={editor} />
-    </div>
+    <InlineImagePreviewProvider images={previewImages}>
+      <div className="rounded-xl border border-neutral-700 bg-neutral-950/60">
+        <EditorContent editor={editor} />
+      </div>
+    </InlineImagePreviewProvider>
   );
 }
 
@@ -206,11 +217,11 @@ export function insertInlineImageFromFile(
   void fileToInlineImage(file)
     .then((inlineImage) => {
       onInlineImageAdd(inlineImage);
-      editor
-        .chain()
-        .focus()
-        .setImage({ src: `cid:${inlineImage.cid}`, alt: inlineImage.filename })
-        .run();
+      insertInlineImageNode(editor, {
+        cid: inlineImage.cid,
+        filename: inlineImage.filename,
+        previewUrl: inlineImageToDataUrl(inlineImage),
+      });
     })
     .catch((error: unknown) => {
       onInlineImageError(

@@ -138,7 +138,10 @@ export function validateSendPayload(
   }
 
   for (const image of inlineImages) {
-    if (!payload.html.includes(`cid:${image.cid}`)) {
+    if (
+      !payload.html.includes(`cid:${image.cid}`) &&
+      !payload.html.includes(`data-cid="${image.cid}"`)
+    ) {
       return "Inline image is not referenced in the email body.";
     }
   }

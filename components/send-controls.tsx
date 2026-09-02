@@ -9,6 +9,7 @@ import { SendProgress } from "@/components/send-progress";
 import {
   fileToBase64,
   filterInlineImagesForHtml,
+  prepareHtmlForSend,
   stripHtmlToText,
 } from "@/lib/compose-utils";
 
@@ -97,6 +98,7 @@ export function SendControls({
     setLogs([]);
 
     let attachmentPayloads: AttachmentPayload[] = [];
+    const htmlForSend = prepareHtmlForSend(compose.body.trim());
     let inlineImagePayloads: InlineImage[] = filterInlineImagesForHtml(
       compose.body,
       compose.inlineImages,
@@ -134,7 +136,7 @@ export function SendControls({
           body: JSON.stringify({
             to: email,
             subject: compose.subject.trim(),
-            html: compose.body.trim(),
+            html: htmlForSend,
             attachments: attachmentPayloads,
             inlineImages: inlineImagePayloads,
           }),

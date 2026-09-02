@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import {
   AlignCenter,
@@ -8,6 +8,7 @@ import {
   AlignRight,
   Bold,
   ImagePlus,
+  ImageMinus,
   IndentDecrease,
   IndentIncrease,
   Italic,
@@ -81,6 +82,7 @@ interface ComposeToolbarProps {
   disabled?: boolean;
   onAttachFiles: () => void;
   onInsertPhoto: () => void;
+  onRemovePhoto: () => void;
 }
 
 function ToolbarButton({
@@ -239,11 +241,29 @@ export function ComposeToolbar({
   disabled,
   onAttachFiles,
   onInsertPhoto,
+  onRemovePhoto,
 }: ComposeToolbarProps) {
   const linkButtonRef = useRef<HTMLButtonElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const [linkOpen, setLinkOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [, setSelectionVersion] = useState(0);
+
+  useEffect(() => {
+    if (!editor) return;
+
+    const handleSelectionChange = () => {
+      setSelectionVersion((current) => current + 1);
+    };
+
+    editor.on("selectionUpdate", handleSelectionChange);
+    editor.on("transaction", handleSelectionChange);
+
+    return () => {
+      editor.off("selectionUpdate", handleSelectionChange);
+      editor.off("transaction", handleSelectionChange);
+    };
+  }, [editor]);
 
   if (!editor) {
     return (
@@ -434,6 +454,13 @@ export function ComposeToolbar({
           onClick={onInsertPhoto}
         >
           <ImagePlus className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          title="Remove photo"
+          disabled={disabled || !editor.isActive("inlineImage")}
+          onClick={onRemovePhoto}
+        >
+          <ImageMinus className="h-4 w-4" />
         </ToolbarButton>
 
         <div className="relative">

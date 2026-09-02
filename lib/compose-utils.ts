@@ -27,7 +27,7 @@ export const ALLOWED_ATTACHMENT_EXTENSIONS = new Set([
 ]);
 
 export function generateCid(): string {
-  return `img_${Date.now()}_${Math.random().toString(36).slice(2, 10)}@mailstrom`;
+  return `img_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export async function fileToBase64(file: File): Promise<string> {
@@ -71,6 +71,10 @@ export function validateInlineImageFile(file: File): string | null {
   return null;
 }
 
+export function inlineImageToDataUrl(image: InlineImage): string {
+  return `data:${image.mimeType};base64,${image.base64}`;
+}
+
 export async function fileToInlineImage(file: File): Promise<InlineImage> {
   const error = validateInlineImageFile(file);
   if (error) {
@@ -89,7 +93,42 @@ export function filterInlineImagesForHtml(
   html: string,
   inlineImages: InlineImage[],
 ): InlineImage[] {
-  return inlineImages.filter((image) => html.includes(`cid:${image.cid}`));
+  return inlineImages.filter(
+    (image) =>
+      html.includes(`cid:${image.cid}`) ||
+      html.includes(`data-cid="${image.cid}"`),
+  );
+}
+
+export function prepareHtmlForSend(html: string): string {
+  return html.replace(/<img\b([^>]*?)>/gi, (tag) => {
+    const dataCidMatch = tag.match(/data-cid="([^"]+)"/i);
+    if (!dataCidMatch?.[1]) {
+      return tag;
+    }
+
+    const cid = dataCidMatch[1];
+    if (/src="cid:[^"]+"/i.test(tag)) {
+      return tag.replace(/src="[^"]+"/i, `src="cid:${cid}"`);
+    }
+
+    return tag.replace("<img", `<img src="cid:${cid}"`);
+  });
+}
+
+export function extractCidsFromHtml(html: string): string[] {
+  const cids = new Set<string>();
+  const dataCidPattern = /data-cid="([^"]+)"/g;
+  const srcCidPattern = /src="cid:([^"]+)"/g;
+
+  for (const match of html.matchAll(dataCidPattern)) {
+    if (match[1]) cids.add(match[1]);
+  }
+  for (const match of html.matchAll(srcCidPattern)) {
+    if (match[1]) cids.add(match[1]);
+  }
+
+  return [...cids];
 }
 
 export function stripHtmlToText(html: string): string {

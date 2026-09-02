@@ -123,8 +123,15 @@ body {
   color: #d4d4d4;
 }
 
-.compose-editor .ProseMirror img {
+.compose-editor .ProseMirror .inline-image-node {
   display: inline-block;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.compose-editor .ProseMirror img,
+.compose-editor .ProseMirror .compose-inline-image {
+  display: block;
   max-width: 100%;
   height: auto;
   margin: 0.5rem 0;

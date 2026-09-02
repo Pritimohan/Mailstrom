@@ -45,7 +45,7 @@ function buildRelatedBody(
 ): { headers: string[]; body: string[] } {
   const boundary = `related_${Date.now()}_${Math.random().toString(36).slice(2)}`;
   const headers = [
-    `Content-Type: multipart/related; boundary="${boundary}"`,
+    `Content-Type: multipart/related; boundary="${boundary}"; type="text/html"`,
   ];
 
   const body = [

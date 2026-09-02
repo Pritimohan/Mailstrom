@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { sendEmail, mapGmailError } from "@/lib/gmail";
+import { prepareHtmlForSend } from "@/lib/compose-utils";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import {
   sendEmailSchema,
@@ -51,11 +52,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const html = prepareHtmlForSend(parsed.data.html);
+
     const { messageId, session: updatedSession } = await sendEmail(
       session,
       parsed.data.to,
       parsed.data.subject,
-      parsed.data.html,
+      html,
       parsed.data.attachments ?? [],
       parsed.data.inlineImages ?? [],
     );

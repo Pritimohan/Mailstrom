@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import { Paperclip, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,10 @@ import {
 } from "@/components/compose/rich-text-editor";
 import {
   MAX_ATTACHMENTS,
+  inlineImageToDataUrl,
   validateAttachmentFile,
 } from "@/lib/compose-utils";
+import { removeInlineImageFromEditor } from "@/components/compose/inline-image-extension";
 import type { InlineImage } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -92,6 +94,48 @@ export function EmailCompose({
     });
   };
 
+  const handleInlineImageRemove = useCallback(
+    (cid: string) => {
+      onChange({
+        ...values,
+        inlineImages: values.inlineImages.filter((image) => image.cid !== cid),
+      });
+    },
+    [onChange, values],
+  );
+
+  const handleInlineImagesSync = useCallback(
+    (cids: string[]) => {
+      const nextInlineImages = values.inlineImages.filter((image) =>
+        cids.includes(image.cid),
+      );
+      if (nextInlineImages.length !== values.inlineImages.length) {
+        onChange({ ...values, inlineImages: nextInlineImages });
+      }
+    },
+    [onChange, values],
+  );
+
+  const removeInlineImageByCid = (cid: string) => {
+    if (!editor) return;
+
+    const { doc, tr } = editor.state;
+    let updated = false;
+
+    doc.descendants((node, pos) => {
+      if (node.type.name === "inlineImage" && node.attrs["data-cid"] === cid) {
+        tr.delete(pos, pos + node.nodeSize);
+        updated = true;
+      }
+    });
+
+    if (updated) {
+      editor.view.dispatch(tr);
+    }
+
+    handleInlineImageRemove(cid);
+  };
+
   const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     if (!disabled) {
@@ -156,18 +200,57 @@ export function EmailCompose({
           disabled={disabled}
           onAttachFiles={() => attachmentRef.current?.click()}
           onInsertPhoto={() => photoRef.current?.click()}
+          onRemovePhoto={() => removeInlineImageFromEditor(editor)}
         />
         <RichTextEditor
           value={values.body}
+          inlineImages={values.inlineImages}
           disabled={disabled}
           editorRef={editorRef}
           onEditorReady={setEditor}
           onChange={(body) => onChange({ ...values, body })}
           onInlineImageAdd={handleInlineImageAdd}
+          onInlineImagesSync={handleInlineImagesSync}
           onInlineImageError={setInlineImageError}
         />
         {inlineImageError && (
           <p className="text-sm text-red-400">{inlineImageError}</p>
+        )}
+
+        {values.inlineImages.length > 0 && (
+          <div className="space-y-2">
+            <Label>Inline photos</Label>
+            {values.inlineImages.map((image) => (
+              <div
+                key={image.cid}
+                className="flex items-center gap-3 overflow-hidden rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={inlineImageToDataUrl(image)}
+                  alt={image.filename}
+                  className="h-12 w-12 shrink-0 rounded object-cover"
+                />
+                <p
+                  className="min-w-0 flex-1 truncate text-sm text-neutral-200"
+                  title={image.filename}
+                >
+                  {image.filename}
+                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 shrink-0 p-0"
+                  disabled={disabled}
+                  aria-label={`Remove ${image.filename}`}
+                  onClick={() => removeInlineImageByCid(image.cid)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
