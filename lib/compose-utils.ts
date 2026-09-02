@@ -104,15 +104,19 @@ export function prepareHtmlForSend(html: string): string {
   return html.replace(/<img\b([^>]*?)>/gi, (tag) => {
     const dataCidMatch = tag.match(/data-cid="([^"]+)"/i);
     if (!dataCidMatch?.[1]) {
+      // Strip any leftover base64 preview src from non-cid images
+      if (/src="data:[^"]+"/i.test(tag)) {
+        return tag.replace(/\s*src="data:[^"]+"/gi, "");
+      }
       return tag;
     }
 
     const cid = dataCidMatch[1];
-    if (/src="cid:[^"]+"/i.test(tag)) {
-      return tag.replace(/src="[^"]+"/i, `src="cid:${cid}"`);
-    }
+    const altMatch = tag.match(/\balt="([^"]*)"/i);
+    const alt = altMatch?.[1] ?? "";
+    const escapedAlt = alt.replace(/"/g, "&quot;");
 
-    return tag.replace("<img", `<img src="cid:${cid}"`);
+    return `<img src="cid:${cid}" alt="${escapedAlt}">`;
   });
 }
 

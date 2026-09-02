@@ -64,6 +64,10 @@ export function createInlineImageExtension() {
           default: null,
           parseHTML: (element) => element.getAttribute("src"),
           renderHTML: (attributes) => {
+            // Preview src is resolved in the node view; don't embed base64 in saved HTML.
+            if (attributes["data-cid"]) {
+              return {};
+            }
             if (!attributes.src) {
               return {};
             }
